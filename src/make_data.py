@@ -2,7 +2,8 @@
 # =====================================================================
 #  make_data.py  -  generates the binary data for anthem.asm
 #
-#  Picture : multicolor bitmap 320x200 (federal president + 3rd verse)
+#  Picture : multicolor bitmap 320x200 (portrait of the federal
+#            president + 3rd verse in the C64 character set)
 #  Music   : German national anthem, melody by Joseph Haydn (1797),
 #            E-flat major, 4/4, quarter = 85 bpm. Structure of the
 #            3rd verse: first part (bars 1-4) twice, second part
@@ -16,7 +17,7 @@
 #             freq.bin       98 bytes  SID frequency table (MIDI 36..84)
 #             image_320x200.png       preview of the rendered picture
 #
-#  Usage:     python3 make_data.py [image.png] [--outdir DIR]
+#  Usage:     python3 make_data.py [image] [--crop L,T,R,B] [--outdir DIR]
 #             Without an image a simple flag background is drawn.
 #
 #  Dependencies: numpy, pillow
@@ -28,108 +29,128 @@ import numpy as np
 from PIL import Image
 
 # ---------------------------------------------------------------------
-# 1) Small 3x5 font, glyphs are scaled 2x in x direction
+# 1) C64 character ROM glyphs (uppercase/graphics set, 901225-01).
+#    Only the characters used by the screen text are included.  Each
+#    glyph is 8 rows of 8 bits, MSB = leftmost pixel.
 # ---------------------------------------------------------------------
 FONT = {
- 'A':"010,101,111,101,101", 'B':"110,101,110,101,110", 'C':"011,100,100,100,011",
- 'D':"110,101,101,101,110", 'E':"111,100,110,100,111", 'F':"111,100,110,100,100",
- 'G':"011,100,101,101,011", 'H':"101,101,111,101,101", 'I':"111,010,010,010,111",
- 'J':"001,001,001,101,010", 'K':"101,101,110,101,101", 'L':"100,100,100,100,111",
- 'M':"101,111,111,101,101", 'N':"111,101,101,101,101", 'O':"010,101,101,101,010",
- 'P':"110,101,110,100,100", 'Q':"010,101,101,110,011", 'R':"110,101,110,101,101",
- 'S':"011,100,010,001,110", 'T':"111,010,010,010,010", 'U':"101,101,101,101,011",
- 'V':"101,101,101,101,010", 'W':"101,101,111,111,101", 'X':"101,101,010,101,101",
- 'Y':"101,101,010,010,010", 'Z':"111,001,010,100,111",
- '0':"111,101,101,101,111", '1':"010,110,010,010,111", '2':"110,001,010,100,111",
- '3':"111,001,011,001,111", '4':"101,101,111,001,001", '5':"111,100,110,001,110",
- '6':"011,100,111,101,111", '7':"111,001,010,010,010", '8':"111,101,111,101,111",
- '9':"111,101,111,001,110",
- ' ':"000,000,000,000,000", '!':"010,010,010,000,010", ',':"000,000,000,010,100",
- '.':"000,000,000,000,010", '-':"000,000,111,000,000", ':':"000,010,000,010,000",
+    'A': (24, 60, 102, 126, 102, 102, 102, 0),
+    'B': (124, 102, 102, 124, 102, 102, 124, 0),
+    'C': (60, 102, 96, 96, 96, 102, 60, 0),
+    'D': (120, 108, 102, 102, 102, 108, 120, 0),
+    'E': (126, 96, 96, 120, 96, 96, 126, 0),
+    'F': (126, 96, 96, 120, 96, 96, 96, 0),
+    'G': (60, 102, 96, 110, 102, 102, 60, 0),
+    'H': (102, 102, 102, 126, 102, 102, 102, 0),
+    'I': (60, 24, 24, 24, 24, 24, 60, 0),
+    'J': (30, 12, 12, 12, 12, 108, 56, 0),
+    'K': (102, 108, 120, 112, 120, 108, 102, 0),
+    'L': (96, 96, 96, 96, 96, 96, 126, 0),
+    'M': (99, 119, 127, 107, 99, 99, 99, 0),
+    'N': (102, 118, 126, 126, 110, 102, 102, 0),
+    'O': (60, 102, 102, 102, 102, 102, 60, 0),
+    'P': (124, 102, 102, 124, 96, 96, 96, 0),
+    'Q': (60, 102, 102, 102, 102, 60, 14, 0),
+    'R': (124, 102, 102, 124, 120, 108, 102, 0),
+    'S': (60, 102, 96, 60, 6, 102, 60, 0),
+    'T': (126, 24, 24, 24, 24, 24, 24, 0),
+    'U': (102, 102, 102, 102, 102, 102, 60, 0),
+    'V': (102, 102, 102, 102, 102, 60, 24, 0),
+    'W': (99, 99, 99, 107, 127, 119, 99, 0),
+    'X': (102, 102, 60, 24, 60, 102, 102, 0),
+    'Y': (102, 102, 102, 60, 24, 24, 24, 0),
+    'Z': (126, 6, 12, 24, 48, 96, 126, 0),
+    '0': (60, 102, 110, 118, 102, 102, 60, 0),
+    '1': (24, 24, 56, 24, 24, 24, 126, 0),
+    '2': (60, 102, 6, 12, 48, 96, 126, 0),
+    '3': (60, 102, 6, 28, 6, 102, 60, 0),
+    '4': (6, 14, 30, 102, 127, 6, 6, 0),
+    '5': (126, 96, 124, 6, 6, 102, 60, 0),
+    '6': (60, 102, 96, 124, 102, 102, 60, 0),
+    '7': (126, 102, 12, 24, 24, 24, 24, 0),
+    '8': (60, 102, 102, 60, 102, 102, 60, 0),
+    '9': (60, 102, 102, 62, 6, 102, 60, 0),
+    ' ': (0, 0, 0, 0, 0, 0, 0, 0),
+    '!': (24, 24, 24, 24, 0, 0, 24, 0),
+    ',': (0, 0, 0, 0, 0, 24, 24, 48),
+    '.': (0, 0, 0, 0, 0, 24, 24, 0),
+    '-': (0, 0, 0, 126, 0, 0, 0, 0),
+    ':': (0, 0, 24, 0, 0, 24, 0, 0),
+    '?': (60, 102, 6, 12, 24, 0, 24, 0),
+    "'": (6, 12, 24, 0, 0, 0, 0, 0),
 }
-UML = {'\u00c4':'A', '\u00d6':'O', '\u00dc':'U'}      # A-umlaut, O-umlaut, U-umlaut
 
-WHITE = (236, 240, 245)
-GOLD  = (250, 205, 110)
-GREY  = (170, 175, 185)
+# The C64 character ROM has no umlauts; transliterate them.
+UML = {'\u00c4': 'A', '\u00d6': 'O', '\u00dc': 'U',
+       '\u00e4': 'A', '\u00f6': 'O', '\u00fc': 'U'}
 
-def _plot(a, x, y, c):
-    if 0 <= y < a.shape[0] and 0 <= x < a.shape[1]:
-        a[y, x] = c
-
-def draw_text(a, x, y, text, colour):
-    """3x5 font, 2 pixels wide per font pixel, 8 pixel advance."""
-    cx = x
-    for ch in text:
-        dots = False
-        if ch in UML:
-            ch, dots = UML[ch], True
-        rows = FONT[ch].split(',')
-        if dots:                                   # umlaut dots one row higher
-            for gx, b in enumerate("101"):
-                if b == '1':
-                    _plot(a, cx + gx * 2, y - 1, colour)
-        for ry, row in enumerate(rows):
-            for gx, b in enumerate(row):
-                if b == '1':
-                    for px in range(2):
-                        _plot(a, cx + gx * 2 + px, y + ry, colour)
-        cx += 8
-
-def text_width(t):
-    return len(t) * 8 - 2
+def normalize(text):
+    return ''.join(UML[ch] if ch in UML else ch for ch in text)
 
 # ---------------------------------------------------------------------
-# 2) Assemble the 320x200 screen image
+# 2) Screen layout
 # ---------------------------------------------------------------------
-LYRICS = ["EINIGKEIT UND RECHT UND FREIHEIT",
-          "F\u00dcR DAS DEUTSCHE VATERLAND!",
-          "DANACH LASST UNS ALLE STREBEN",
-          "BR\u00dcDERLICH MIT HERZ UND HAND!",
-          "EINIGKEIT UND RECHT UND FREIHEIT",
-          "SIND DES GL\u00dcCKES UNTERPFAND.",
-          "BL\u00dcH IM GLANZE DIESES GL\u00dcCKES,",
-          "BL\u00dcHE, DEUTSCHES VATERLAND!"]
-HEADER = "BUNDESPR\u00c4SIDENT FRANK-WALTER STEINMEIER"
+SCREEN_W, SCREEN_H = 320, 200
+PHOTO_X, PHOTO_Y = 0, 8
+PHOTO_W, PHOTO_H = 320, 112
 
+HEADER = normalize("BUNDESPR\u00c4SIDENT FRANK-WALTER STEINMEIER")
+TITLE  = "3. STROPHE"
+LYRICS = [normalize(line) for line in [
+    "EINIGKEIT UND RECHT UND FREIHEIT",
+    "F\u00dcR DAS DEUTSCHE VATERLAND!",
+    "DANACH LASST UNS ALLE STREBEN",
+    "BR\u00dcDERLICH MIT HERZ UND HAND!",
+    "EINIGKEIT UND RECHT UND FREIHEIT",
+    "SIND DES GL\u00dcCKES UNTERPFAND.",
+    "BL\u00dcH IM GLANZE DIESES GL\u00dcCKES,",
+    "BL\u00dcHE, DEUTSCHES VATERLAND!",
+]]
+FOOTER = "MELODIE: JOSEPH HAYDN 1797"
+
+# C64 color indices
+BLACK, WHITE, YELLOW, GREY = 0, 1, 7, 12
+
+DEFAULT_IMAGE = "res/steinmeier.jpg"
+DEFAULT_CROP  = (160, 133, 800, 357)   # left, top, right, bottom
+
+# ---------------------------------------------------------------------
+# 3) Photo
+# ---------------------------------------------------------------------
 def flag_background():
     """Fallback background if no photo is available."""
-    a = np.zeros((200, 320, 3), np.float64)
-    for y in range(200):                           # black-red-gold
-        if y < 60:      a[y] = (28, 28, 32)
-        elif y < 120:   a[y] = (150, 30, 30)
-        else:           a[y] = (200, 160, 40)
+    a = np.zeros((PHOTO_H, PHOTO_W, 3), np.float64)
+    for y in range(PHOTO_H):                       # black-red-gold
+        if y < PHOTO_H // 3:      a[y] = (28, 28, 32)
+        elif y < 2 * PHOTO_H // 3: a[y] = (150, 30, 30)
+        else:                      a[y] = (200, 160, 40)
     return a
 
-def build_picture(img_path=None):
-    if img_path and os.path.exists(img_path):
-        canvas = np.zeros((200, 320, 3), np.float64)
-        src = Image.open(img_path).convert("RGB").resize((320, 179), Image.LANCZOS)
-        canvas[:179] = np.array(src, np.float64)
+def load_photo(path, crop=None):
+    im = Image.open(path).convert("RGB")
+    if crop:
+        im = im.crop(crop)
     else:
-        canvas = flag_background()
+        w, h = im.size
+        target = PHOTO_W / PHOTO_H
+        if w / h > target:
+            cw, ch = int(h * target), h
+        else:
+            cw, ch = w, int(w / target)
+        left, top = (w - cw) // 2, (h - ch) // 2
+        im = im.crop((left, top, left + cw, top + ch))
+    return im.resize((PHOTO_W, PHOTO_H), Image.Resampling.LANCZOS)
 
-    # Darken: title strip at the top, gradient band at the bottom for the lyrics
-    for y in range(200):
-        f = 1.0
-        if y <= 13:
-            f = 0.30
-        if y >= 90:
-            f = min(f, 1.0 - 0.88 * ((y - 90) / 110.0) ** 1.15)
-        canvas[y] *= f
-
-    draw_text(canvas, 4, 2, HEADER, GOLD)
-    draw_text(canvas, (320 - text_width("3. STROPHE")) // 2, 110, "3. STROPHE", GOLD)
-    y = 126
-    for line in LYRICS:
-        draw_text(canvas, (320 - text_width(line)) // 2, y, line, WHITE)
-        y += 9
-    draw_text(canvas, (320 - text_width("MELODIE: JOSEPH HAYDN 1797")) // 2, 193,
-              "MELODIE: JOSEPH HAYDN 1797", GREY)
-    return np.clip(canvas, 0, 255).astype(np.uint8)
+def build_picture(img_path, crop=None):
+    canvas = np.zeros((SCREEN_H, SCREEN_W, 3), np.uint8)
+    if img_path and os.path.exists(img_path):
+        canvas[PHOTO_Y:PHOTO_Y + PHOTO_H] = np.array(load_photo(img_path, crop))
+    else:
+        canvas[PHOTO_Y:PHOTO_Y + PHOTO_H] = flag_background()
+    return canvas
 
 # ---------------------------------------------------------------------
-# 3) Convert to a multicolor bitmap (Koala format)
+# 4) Convert to a multicolor bitmap (Koala format)
 #    per 8x8 character cell: 32 multicolor pixels, background = color 0,
 #    plus 3 colors from the 16 C64 colors (best match)
 # ---------------------------------------------------------------------
@@ -171,7 +192,68 @@ def to_koala(img):
     return bmp, scr, col
 
 # ---------------------------------------------------------------------
-# 4) Music: note1, note2, note3, duration (1/50 s); 255 = end/loop
+# 5) Text rendering directly into the Koala data
+#
+#    A character cell is 8x8 screen pixels = 8 bitmap bytes (one per
+#    row).  In multicolor mode each byte holds 4 fat pixels of 2 bits,
+#    so the 8-pixel-wide glyph is folded to 4 pixels by OR-ing pairs
+#    of columns.  Pixel value 1 selects color 1, value 0 the global
+#    background color 0 (black).
+# ---------------------------------------------------------------------
+def clear_cells(bmp, scr, col, x0, y0, x1, y1):
+    for cy in range(y0 // 8, (y1 + 7) // 8):
+        for cx in range(x0 // 8, (x1 + 7) // 8):
+            for r in range(8):
+                bmp[cy * 320 + cx * 8 + r] = 0
+            scr[cy * 40 + cx] = 0
+            col[cy * 40 + cx] = 0
+
+def draw_text(bmp, scr, col, x, y, text, fg):
+    cx, cy = x // 8, y // 8
+    dy = y % 8
+    for ch in text:
+        glyph = FONT[ch]
+        for r in range(8 - dy):
+            bits = glyph[r]
+            byte = 0
+            for i in range(4):
+                hi = (bits >> (7 - 2 * i)) & 1
+                lo = (bits >> (6 - 2 * i)) & 1
+                byte = (byte << 2) | (hi | lo)
+            bmp[cy * 320 + cx * 8 + r + dy] = byte
+        scr[cy * 40 + cx] = (fg << 4) | BLACK
+        col[cy * 40 + cx] = BLACK
+        cx += 1
+
+def koala_to_image(bmp, scr, col):
+    """Decode the Koala data back to a 320x200 RGB preview."""
+    img = np.zeros((SCREEN_H, SCREEN_W, 3), np.uint8)
+    bg = PAL[0]
+    for cy in range(25):
+        for cx in range(40):
+            s = int(scr[cy * 40 + cx])
+            colors = [bg, PAL[s >> 4], PAL[s & 0x0f], PAL[col[cy * 40 + cx]]]
+            for r in range(8):
+                byte = int(bmp[cy * 320 + cx * 8 + r])
+                for p in range(4):
+                    c = colors[(byte >> (6 - 2 * p)) & 3]
+                    x, y = cx * 8 + p * 2, cy * 8 + r
+                    img[y, x] = c
+                    img[y, x + 1] = c
+    return img
+
+def draw_screen_text(bmp, scr, col):
+    clear_cells(bmp, scr, col, 0, 120, SCREEN_W, SCREEN_H)
+    draw_text(bmp, scr, col, 0, 1, HEADER, YELLOW)
+    draw_text(bmp, scr, col, (SCREEN_W - len(TITLE) * 8) // 2, 120, TITLE, YELLOW)
+    y = 128
+    for line in LYRICS:
+        draw_text(bmp, scr, col, (SCREEN_W - len(line) * 8) // 2, y, line, WHITE)
+        y += 8
+    draw_text(bmp, scr, col, (SCREEN_W - len(FOOTER) * 8) // 2, 192, FOOTER, GREY)
+
+# ---------------------------------------------------------------------
+# 6) Music: note1, note2, note3, duration (1/50 s); 255 = end/loop
 #
 #    Melody: E-flat major, 4/4, quarter = 85 bpm -> one quarter = 35
 #    frames (50 Hz). Structure of the 3rd verse:
@@ -218,19 +300,19 @@ def build_music():
         notes, ch = BARS[b]
         bass, pad = CHORDS[ch]
         for nt, beats in notes:
-            ev += [nt, bass, pad, max(1, int(round(beats * Q)))]
+            ev += [nt, bass, pad, max(1, round(beats * Q))]
     ev[-1] = 100                        # fermata on the final note
     ev += [255, 0, 0, 0]                # end marker
     return ev
 
 # ---------------------------------------------------------------------
-# 5) SID frequency table PAL: reg = f * 16777216 / 985248
+# 7) SID frequency table PAL: reg = f * 16777216 / 985248
 # ---------------------------------------------------------------------
 def build_freq():
     t = []
     for n in range(36, 85):                 # MIDI 36 (C2) .. 84 (C6)
         f = 440.0 * 2 ** ((n - 69) / 12.0)
-        reg = int(round(f * 16777216 / 985248.0))
+        reg = round(f * 16777216 / 985248.0)
         t += [reg & 0xff, reg >> 8]
     return t
 
@@ -238,16 +320,26 @@ def build_freq():
 def main():
     ap = argparse.ArgumentParser(
         description="Generate the binary data for anthem.asm.")
-    ap.add_argument("image", nargs="?", default=None,
-                    help="optional background image "
-                         "(default: simple flag background)")
+    ap.add_argument("image", nargs="?", default=DEFAULT_IMAGE,
+                    help=f"background image (default: {DEFAULT_IMAGE})")
+    ap.add_argument("--crop", default=None,
+                    help="crop box left,top,right,bottom (default: tuned "
+                         "for the bundled photo, otherwise centered)")
     ap.add_argument("-o", "--outdir", default="build",
                     help="output directory (default: build)")
     args = ap.parse_args()
 
+    if args.crop:
+        crop = tuple(int(v) for v in args.crop.split(","))
+    elif os.path.basename(args.image) == os.path.basename(DEFAULT_IMAGE):
+        crop = DEFAULT_CROP
+    else:
+        crop = None
+
     os.makedirs(args.outdir, exist_ok=True)
-    canvas = build_picture(args.image)
+    canvas = build_picture(args.image, crop)
     bmp, scr, col = to_koala(canvas)
+    draw_screen_text(bmp, scr, col)
 
     out = {
         "bitmap.bin": list(bmp),
@@ -260,8 +352,9 @@ def main():
         path = os.path.join(args.outdir, name)
         with open(path, "wb") as f:
             f.write(bytes(data))
-        print("%-11s %5d bytes" % (name, len(data)))
-    Image.fromarray(canvas).save(os.path.join(args.outdir, "image_320x200.png"))
+        print(f"{name:<11} {len(data):>5} bytes")
+    preview = koala_to_image(bmp, scr, col)
+    Image.fromarray(preview).save(os.path.join(args.outdir, "image_320x200.png"))
 
 if __name__ == "__main__":
     main()

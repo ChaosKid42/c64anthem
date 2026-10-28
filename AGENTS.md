@@ -11,7 +11,8 @@ result is packed into a D64 disk image.
 ## Layout
 
 - `src/` — source files (`.asm`, `.py`). Never put generated files here.
-- `res/` — input resources (images, ...).
+- `res/` — input resources: `steinmeier.jpg` (portrait) and
+  `anthem_image_c64.png` (reference preview, not a build input).
 - `build/` — generated output only. Never edit it by hand; it is git-ignored.
 - `build.ninja` — the build description (kept at the project root so that
   plain `ninja` works).
@@ -36,6 +37,13 @@ All build outputs must go to `build/`. Do not commit anything from `build/`.
 - Do not assemble the final program with `acme -o`: `-o` overrides `!to`
   and drops the CBM load address, producing a headerless binary.
 - Keep the generated data deterministic so incremental builds stay stable.
+- Screen text is drawn into the Koala data with glyphs from the C64
+  character ROM, embedded in `make_data.py` (`FONT`). The ROM has no
+  umlauts; `normalize()` transliterates Ä/Ö/Ü to A/O/U.
+- The C64 bitmap is cell-major: cell `(cx, cy)`, row `r` lives at
+  `bmp[cy*320 + cx*8 + r]`, with screen/color at `cy*40 + cx`.
+- The text band is solid black and the photo occupies `y=8..119`, so the
+  text stays readable.
 - The Ninja variable for the output directory is `outdir`, not `builddir`.
   Ninja 1.13 stores `.ninja_log` inside `$builddir`, which would break
   `ninja clean`.

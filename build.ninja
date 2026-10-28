@@ -29,7 +29,7 @@ build $outdir/bitmap.bin $
       $outdir/colors.bin $
       $outdir/music.bin $
       $outdir/freq.bin $
-      $outdir/image_320x200.png: data $srcdir/make_data.py
+      $outdir/image_320x200.png: data $srcdir/make_data.py res/steinmeier.jpg
 
 # ---------------------------------------------------------------------
 #  Assemble the program
