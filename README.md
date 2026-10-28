@@ -52,8 +52,7 @@ RUN
 │   ├── anthem.asm             6502 source (ACME syntax)
 │   └── make_data.py           generates the binary data
 ├── res/
-│   ├── steinmeier.jpg         portrait of the Federal President
-│   └── anthem_image_c64.png   reference preview of the picture
+│   └── steinmeier.jpg         portrait of the Federal President
 └── build/                     generated output (git-ignored)
 ```
 
@@ -63,8 +62,9 @@ RUN
 to a Koala-style multicolor bitmap and writes the bitmap, screen and color
 data. The header, title, lyrics and footer are drawn directly into the
 bitmap data in high-resolution format using glyphs from the C64 character
-ROM, so the text stays crisp at its native 8x8 size. The script also
-generates the SID frequency table and the music data.
+ROM (plus the German umlauts Ä/Ö/Ü, defined after the C64-Wiki
+"Zeichen" article), so the text stays crisp at its native 8x8 size. The
+script also generates the SID frequency table and the music data.
 
 `anthem.asm` sets up the VIC-II for a multicolor bitmap, copies screen and
 color data into place, initializes the SID and installs a raster IRQ chain
@@ -87,8 +87,7 @@ python3 src/make_data.py path/to/photo.png --crop L,T,R,B --outdir build
 
 Without an image a simple black-red-gold flag background is drawn. The
 crop box is optional; without it the photo is center-cropped to the banner
-aspect ratio. `res/anthem_image_c64.png` is only a reference preview; it
-is not used as build input.
+aspect ratio.
 
 ## Credits
 

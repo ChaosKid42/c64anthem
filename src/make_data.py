@@ -60,6 +60,13 @@ FONT = {
     'X': (102, 102, 60, 24, 60, 102, 102, 0),
     'Y': (102, 102, 102, 60, 24, 24, 24, 0),
     'Z': (126, 6, 12, 24, 48, 96, 126, 0),
+    # Umlauts: the C64 character ROM has no umlauts. These follow the
+    # German umlaut definitions from the C64-Wiki "Zeichen" article:
+    # two-pixel dots on the top row, letter body compressed and shifted
+    # down to make room for them.
+    '\u00c4': (195, 24, 102, 126, 102, 102, 102, 0),    # Ä
+    '\u00d6': (102, 60, 102, 102, 102, 102, 60, 0),     # Ö
+    '\u00dc': (102, 0, 102, 102, 102, 102, 60, 0),      # Ü
     '0': (60, 102, 110, 118, 102, 102, 60, 0),
     '1': (24, 24, 56, 24, 24, 24, 126, 0),
     '2': (60, 102, 6, 12, 48, 96, 126, 0),
@@ -80,9 +87,9 @@ FONT = {
     "'": (6, 12, 24, 0, 0, 0, 0, 0),
 }
 
-# The C64 character ROM has no umlauts; transliterate them.
-UML = {'\u00c4': 'A', '\u00d6': 'O', '\u00dc': 'U',
-       '\u00e4': 'A', '\u00f6': 'O', '\u00fc': 'U'}
+# Lowercase umlauts are folded to the uppercase glyphs above; the
+# uppercase letters pass through as-is and are looked up in FONT.
+UML = {'\u00e4': '\u00c4', '\u00f6': '\u00d6', '\u00fc': '\u00dc'}
 
 def normalize(text):
     return ''.join(UML[ch] if ch in UML else ch for ch in text)

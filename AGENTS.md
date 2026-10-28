@@ -11,8 +11,7 @@ result is packed into a D64 disk image.
 ## Layout
 
 - `src/` — source files (`.asm`, `.py`). Never put generated files here.
-- `res/` — input resources: `steinmeier.jpg` (portrait) and
-  `anthem_image_c64.png` (reference preview, not a build input).
+- `res/` — input resources: `steinmeier.jpg` (portrait).
 - `build/` — generated output only. Never edit it by hand; it is git-ignored.
 - `build.ninja` — the build description (kept at the project root so that
   plain `ninja` works).
@@ -62,8 +61,10 @@ The tools are installed system-wide (no local toolchain setup needed):
   (8 pixels per byte) with glyphs from the C64 character ROM, embedded in
   `make_data.py` (`FONT`). The photo is stored in multicolor format
   (4 fat pixels per byte); `anthem.asm` switches between the two modes
-  with a raster split. The ROM has no umlauts; `normalize()`
-  transliterates Ä/Ö/Ü to A/O/U.
+  with a raster split. The ROM has no umlauts, so `FONT` adds custom
+  glyphs for Ä/Ö/Ü (two-pixel dots on the top row, body compressed
+  and shifted down), following the C64-Wiki "Zeichen" article;
+  `normalize()` folds lowercase ä/ö/ü to the uppercase glyphs.
 - On PAL the first visible raster line is 51, so screen row `y` starts at
   raster line `51 + 8*y`. The raster split in `anthem.asm` uses line 59
   (photo, `y=8`) and line 171 (text, `y=120`); the music IRQ is at line
