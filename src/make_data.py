@@ -2,15 +2,15 @@
 # =====================================================================
 #  make_data.py  -  generates the binary data for anthem.asm
 #
-#  Picture : multicolor bitmap 320x200 (portrait of the federal
-#            president + 3rd verse in the C64 character set)
+#  Picture : 320x200 bitmap, multicolor portrait + high-resolution
+#            text of the 3rd verse in the C64 character set
 #  Music   : German national anthem, melody by Joseph Haydn (1797),
 #            E-flat major, 4/4, quarter = 85 bpm. Structure of the
 #            3rd verse: first part (bars 1-4) twice, second part
 #            (bars 5-12), its closing lines twice; final note with
 #            a fermata.
 #
-#  Produces:  bitmap.bin   8000 bytes  multicolor bitmap ($2000)
+#             bitmap.bin   8000 bytes  bitmap ($2000)
 #             screen.bin   1024 bytes  screen RAM      ($1000, 1000+24)
 #             colors.bin   1024 bytes  color RAM       ($1400, 1000+24)
 #             music.bin     380 bytes  music data
@@ -160,14 +160,18 @@ PAL = np.array([(0,0,0), (255,255,255), (104,55,43), (112,164,178),
                 (108,108,108), (154,210,132), (108,94,181), (149,149,149)],
                dtype=np.int32)
 
-def to_koala(img):
+def to_koala(img, cy0=0):
+    """Convert a 320xH image (H a multiple of 8) to multicolor Koala
+    data, placing the cells at cell row cy0."""
     import itertools
-    mc    = np.asarray(img, float).reshape(200, 160, 2, 3).mean(2)
-    cells = mc.reshape(25, 8, 40, 4, 3)
+    h = img.shape[0]
+    ncy = h // 8
+    mc    = np.asarray(img, float).reshape(h, 160, 2, 3).mean(2)
+    cells = mc.reshape(ncy, 8, 40, 4, 3)
     bmp = np.zeros(8000, np.uint8)
     scr = np.zeros(1000, np.uint8)
     col = np.zeros(1000, np.uint8)
-    for cy in range(25):
+    for cy in range(ncy):
         for cx in range(40):
             px  = cells[cy, :, cx, :, :].reshape(32, 3)
             d   = ((px[:, None, :] - PAL[None, :, :]) ** 2).sum(2)   # 32x16
@@ -186,65 +190,62 @@ def to_koala(img):
                 byte = 0
                 for p in range(4):
                     byte = (byte << 2) | int(assign[r * 4 + p])
-                bmp[cy * 320 + cx * 8 + r] = byte
-            scr[cy * 40 + cx] = (cols[1] << 4) | cols[2]
-            col[cy * 40 + cx] = cols[3]
+                bmp[(cy0 + cy) * 320 + cx * 8 + r] = byte
+            scr[(cy0 + cy) * 40 + cx] = (cols[1] << 4) | cols[2]
+            col[(cy0 + cy) * 40 + cx] = cols[3]
     return bmp, scr, col
 
 # ---------------------------------------------------------------------
-# 5) Text rendering directly into the Koala data
+# 5) Text rendering directly into the bitmap data
 #
-#    A character cell is 8x8 screen pixels = 8 bitmap bytes (one per
-#    row).  In multicolor mode each byte holds 4 fat pixels of 2 bits,
-#    so the 8-pixel-wide glyph is folded to 4 pixels by OR-ing pairs
-#    of columns.  Pixel value 1 selects color 1, value 0 the global
-#    background color 0 (black).
+#    The photo is stored in multicolor format (4 fat pixels per byte),
+#    but the text is stored in high-resolution format (8 pixels per
+#    byte, one bit each) so the C64 character ROM glyphs are drawn at
+#    their native 8x8 size with no scaling.  The VIC-II is switched
+#    between the two modes with a raster split (see anthem.asm).  In
+#    high-res mode screen RAM holds (foreground << 4) | background.
 # ---------------------------------------------------------------------
-def clear_cells(bmp, scr, col, x0, y0, x1, y1):
-    for cy in range(y0 // 8, (y1 + 7) // 8):
-        for cx in range(x0 // 8, (x1 + 7) // 8):
-            for r in range(8):
-                bmp[cy * 320 + cx * 8 + r] = 0
-            scr[cy * 40 + cx] = 0
-            col[cy * 40 + cx] = 0
-
 def draw_text(bmp, scr, col, x, y, text, fg):
     cx, cy = x // 8, y // 8
     dy = y % 8
     for ch in text:
         glyph = FONT[ch]
         for r in range(8 - dy):
-            bits = glyph[r]
-            byte = 0
-            for i in range(4):
-                hi = (bits >> (7 - 2 * i)) & 1
-                lo = (bits >> (6 - 2 * i)) & 1
-                byte = (byte << 2) | (hi | lo)
-            bmp[cy * 320 + cx * 8 + r + dy] = byte
+            bmp[cy * 320 + cx * 8 + r + dy] = glyph[r]
         scr[cy * 40 + cx] = (fg << 4) | BLACK
         col[cy * 40 + cx] = BLACK
         cx += 1
 
 def koala_to_image(bmp, scr, col):
-    """Decode the Koala data back to a 320x200 RGB preview."""
+    """Decode the bitmap data back to a 320x200 RGB preview."""
     img = np.zeros((SCREEN_H, SCREEN_W, 3), np.uint8)
-    bg = PAL[0]
+    cy0, cy1 = PHOTO_Y // 8, (PHOTO_Y + PHOTO_H) // 8
     for cy in range(25):
         for cx in range(40):
             s = int(scr[cy * 40 + cx])
-            colors = [bg, PAL[s >> 4], PAL[s & 0x0f], PAL[col[cy * 40 + cx]]]
-            for r in range(8):
-                byte = int(bmp[cy * 320 + cx * 8 + r])
-                for p in range(4):
-                    c = colors[(byte >> (6 - 2 * p)) & 3]
-                    x, y = cx * 8 + p * 2, cy * 8 + r
-                    img[y, x] = c
-                    img[y, x + 1] = c
+            if cy0 <= cy < cy1:
+                # multicolor (photo)
+                colors = [PAL[0], PAL[s >> 4], PAL[s & 0x0f],
+                          PAL[col[cy * 40 + cx]]]
+                for r in range(8):
+                    byte = int(bmp[cy * 320 + cx * 8 + r])
+                    for p in range(4):
+                        c = colors[(byte >> (6 - 2 * p)) & 3]
+                        x, y = cx * 8 + p * 2, cy * 8 + r
+                        img[y, x] = c
+                        img[y, x + 1] = c
+            else:
+                # high-res (text)
+                fg, bg = PAL[s >> 4], PAL[s & 0x0f]
+                for r in range(8):
+                    byte = int(bmp[cy * 320 + cx * 8 + r])
+                    for p in range(8):
+                        c = fg if (byte >> (7 - p)) & 1 else bg
+                        img[cy * 8 + r, cx * 8 + p] = c
     return img
 
 def draw_screen_text(bmp, scr, col):
-    clear_cells(bmp, scr, col, 0, 120, SCREEN_W, SCREEN_H)
-    draw_text(bmp, scr, col, 0, 1, HEADER, YELLOW)
+    draw_text(bmp, scr, col, 0, 0, HEADER, YELLOW)
     draw_text(bmp, scr, col, (SCREEN_W - len(TITLE) * 8) // 2, 120, TITLE, YELLOW)
     y = 128
     for line in LYRICS:
@@ -338,7 +339,8 @@ def main():
 
     os.makedirs(args.outdir, exist_ok=True)
     canvas = build_picture(args.image, crop)
-    bmp, scr, col = to_koala(canvas)
+    photo = canvas[PHOTO_Y:PHOTO_Y + PHOTO_H]
+    bmp, scr, col = to_koala(photo, cy0=PHOTO_Y // 8)
     draw_screen_text(bmp, scr, col)
 
     out = {

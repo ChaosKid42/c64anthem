@@ -59,16 +59,17 @@ RUN
 
 ## How it works
 
-`make_data.py` crops the portrait to a 320x112 banner, converts the
-320x200 screen to a Koala-style multicolor bitmap and writes the bitmap,
-screen and color data. The header, title, lyrics and footer are drawn
-directly into the Koala data using glyphs from the C64 character ROM, so
-the text stays crisp. The script also generates the SID frequency table
-and the music data.
+`make_data.py` crops the portrait to a 320x112 banner, converts the photo
+to a Koala-style multicolor bitmap and writes the bitmap, screen and color
+data. The header, title, lyrics and footer are drawn directly into the
+bitmap data in high-resolution format using glyphs from the C64 character
+ROM, so the text stays crisp at its native 8x8 size. The script also
+generates the SID frequency table and the music data.
 
 `anthem.asm` sets up the VIC-II for a multicolor bitmap, copies screen and
-color data into place, initializes the SID and installs a raster IRQ that
-plays the music.
+color data into place, initializes the SID and installs a raster IRQ chain
+that switches between multicolor (photo) and high-resolution (text) modes
+and plays the music.
 
 The build produces:
 

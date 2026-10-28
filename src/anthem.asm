@@ -2,8 +2,8 @@
 ;  "THE SONG OF THE GERMANS" - 3RD VERSE
 ;  C64 program, ACME syntax
 ;
-;  Picture : multicolor bitmap 320x200, portrait of the federal
-;            president + text of the third verse
+;  Picture : 320x200 bitmap, multicolor portrait + high-resolution
+;            text of the third verse
 ;  Music   : SID arrangement of the Haydn melody, 3 voices, 50 Hz IRQ
 ;
 ;  Build   :  ninja            (see build.ninja)
@@ -45,8 +45,8 @@ start
         sta $d018       ; bitmap $2000, screen $0400
         lda #$3b
         sta $d011       ; bitmap mode, 25 rows
-        lda #$d8
-        sta $d016       ; multicolor, 40 columns
+        lda #$c8
+        sta $d016       ; high-res, 40 columns (header at top)
         lda #$00
         sta $d020       ; border black
         sta $d021       ; background black
@@ -108,17 +108,21 @@ sidclr  sta $d400,x
         lda #$66
         sta $d414
 
-;--- Raster IRQ -----------------------------------------------------
-        lda #$fb
-        sta $d012       ; raster line 251
+;--- Raster IRQ chain ----------------------------------------------
+;     line 59  -> multicolor (photo)
+;     line 171 -> high-res (text)
+;     line 251 -> music tick
+;--------------------------------------------------------------------
+        lda #$3b
+        sta $d012       ; first IRQ at line 59 (start of photo)
         lda $d011
         and #$7f
         sta $d011
         lda #$01
         sta $d01a
-        lda #<irq
+        lda #<irq59
         sta $0314
-        lda #>irq
+        lda #>irq59
         sta $0315
         lda #1
         sta durcnt
@@ -130,11 +134,61 @@ sidclr  sta $d400,x
         sta mptr
         lda #>music
         sta mptr+1
+        ; wait for the top of the screen so the first frame is correct
+wait    lda $d012
+        cmp #51
+        bne wait
         cli
 
 main    jmp main        ; everything else is done by the IRQ
 
-;--- IRQ ------------------------------------------------------------
+;--- IRQ at line 59: switch to multicolor (photo) -------------------
+irq59   pha
+        lda #$d8
+        sta $d016       ; multicolor (do this first, before the border ends)
+        lda #$01
+        sta $d019       ; acknowledge IRQ
+        txa
+        pha
+        tya
+        pha
+        lda #$ab
+        sta $d012       ; next IRQ at line 171
+        lda #<irq171
+        sta $0314
+        lda #>irq171
+        sta $0315
+        pla
+        tay
+        pla
+        tax
+        pla
+        jmp $ea31
+
+;--- IRQ at line 171: switch to high-res (text) ----------------------
+irq171  pha
+        lda #$c8
+        sta $d016       ; high-res (do this first, before the border ends)
+        lda #$01
+        sta $d019
+        txa
+        pha
+        tya
+        pha
+        lda #$fb
+        sta $d012       ; next IRQ at line 251 (music)
+        lda #<irq
+        sta $0314
+        lda #>irq
+        sta $0315
+        pla
+        tay
+        pla
+        tax
+        pla
+        jmp $ea31
+
+;--- IRQ at line 251: music tick -------------------------------------
 irq     pha
         txa
         pha
@@ -143,6 +197,12 @@ irq     pha
         lda #$01
         sta $d019       ; acknowledge IRQ
         jsr tick
+        lda #$3b
+        sta $d012       ; next IRQ at line 59
+        lda #<irq59
+        sta $0314
+        lda #>irq59
+        sta $0315
         pla
         tay
         pla
