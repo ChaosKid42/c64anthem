@@ -97,3 +97,10 @@ aspect ratio.
 - Text: third verse of *Das Lied der Deutschen* by Hoffmann von
   Fallersleben.
 - Font: glyphs from the C64 character ROM (Commodore).
+
+## License
+
+The project's code and generated assets are MIT licensed — see
+[LICENSE](LICENSE). The bundled portrait `res/steinmeier.jpg` is a third-
+party work and remains under its own license (CC BY-SA 3.0 de, see the
+credits above).
