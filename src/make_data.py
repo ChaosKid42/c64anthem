@@ -1,31 +1,34 @@
 #!/usr/bin/env python3
 # =====================================================================
-#  make_data.py  -  erzeugt die Binardaten fuer hymne.asm
+#  make_data.py  -  generates the binary data for anthem.asm
 #
-#  Bild   : Multicolor-Bitmap 320x200 (Bundespraesident + 3. Strophe)
-#  Musik  : Deutsche Nationalhymne, Melodie nach Joseph Haydn (1797),
-#           Es-Dur, 4/4, Viertel = 85 bpm.  Aufbau der 3. Strophe:
-#           Stollen (T. 1-4) zweimal, Abgesang (T. 5-12), dessen
-#           Schlusszeilen zweimal; Schlussnote mit Fermate.
+#  Picture : multicolor bitmap 320x200 (federal president + 3rd verse)
+#  Music   : German national anthem, melody by Joseph Haydn (1797),
+#            E-flat major, 4/4, quarter = 85 bpm. Structure of the
+#            3rd verse: first part (bars 1-4) twice, second part
+#            (bars 5-12), its closing lines twice; final note with
+#            a fermata.
 #
-#  Erzeugt:  bitmap.bin   8000 Bytes  Multicolor-Bitmap ($2000)
-#            screen.bin   1024 Bytes  Screen-RAM      ($1000, 1000+24)
-#            colors.bin   1024 Bytes  Farb-RAM        ($1400, 1000+24)
-#            music.bin     380 Bytes  Musikdaten
-#            freq.bin       98 Bytes  SID-Frequenztabelle (MIDI 36..84)
+#  Produces:  bitmap.bin   8000 bytes  multicolor bitmap ($2000)
+#             screen.bin   1024 bytes  screen RAM      ($1000, 1000+24)
+#             colors.bin   1024 bytes  color RAM       ($1400, 1000+24)
+#             music.bin     380 bytes  music data
+#             freq.bin       98 bytes  SID frequency table (MIDI 36..84)
+#             image_320x200.png       preview of the rendered picture
 #
-#  Aufruf:   python3 make_data.py [bild.png]
-#            ohne Argument wird data/gen-755.png benutzt; fehlt die Datei,
-#            wird ein einfacher Flaggen-Hintergrund gezeichnet.
+#  Usage:     python3 make_data.py [image.png] [--outdir DIR]
+#             Without an image a simple flag background is drawn.
 #
-#  Abhaengigkeiten: numpy, pillow
+#  Dependencies: numpy, pillow
 # =====================================================================
-import sys, os
+import argparse
+import os
+
 import numpy as np
 from PIL import Image
 
 # ---------------------------------------------------------------------
-# 1) Kleine 3x5-Schrift, Glyphen werden in x-Richtung 2-fach skaliert
+# 1) Small 3x5 font, glyphs are scaled 2x in x direction
 # ---------------------------------------------------------------------
 FONT = {
  'A':"010,101,111,101,101", 'B':"110,101,110,101,110", 'C':"011,100,100,100,011",
@@ -44,7 +47,7 @@ FONT = {
  ' ':"000,000,000,000,000", '!':"010,010,010,000,010", ',':"000,000,000,010,100",
  '.':"000,000,000,000,010", '-':"000,000,111,000,000", ':':"000,010,000,010,000",
 }
-UML = {'\u00c4':'A', '\u00d6':'O', '\u00dc':'U'}      # A-Uml, O-Uml, U-Uml
+UML = {'\u00c4':'A', '\u00d6':'O', '\u00dc':'U'}      # A-umlaut, O-umlaut, U-umlaut
 
 WHITE = (236, 240, 245)
 GOLD  = (250, 205, 110)
@@ -55,14 +58,14 @@ def _plot(a, x, y, c):
         a[y, x] = c
 
 def draw_text(a, x, y, text, colour):
-    """3x5-Schrift, 2 Pixel breit je Fontpixel, 8 Pixel Vorschub."""
+    """3x5 font, 2 pixels wide per font pixel, 8 pixel advance."""
     cx = x
     for ch in text:
         dots = False
         if ch in UML:
             ch, dots = UML[ch], True
         rows = FONT[ch].split(',')
-        if dots:                                   # Umlautpunkte eine Zeile hoeher
+        if dots:                                   # umlaut dots one row higher
             for gx, b in enumerate("101"):
                 if b == '1':
                     _plot(a, cx + gx * 2, y - 1, colour)
@@ -77,7 +80,7 @@ def text_width(t):
     return len(t) * 8 - 2
 
 # ---------------------------------------------------------------------
-# 2) Bildschirmbild 320x200 zusammenbauen
+# 2) Assemble the 320x200 screen image
 # ---------------------------------------------------------------------
 LYRICS = ["EINIGKEIT UND RECHT UND FREIHEIT",
           "F\u00dcR DAS DEUTSCHE VATERLAND!",
@@ -90,9 +93,9 @@ LYRICS = ["EINIGKEIT UND RECHT UND FREIHEIT",
 HEADER = "BUNDESPR\u00c4SIDENT FRANK-WALTER STEINMEIER"
 
 def flag_background():
-    """Ersatzhintergrund, falls kein Foto vorhanden ist."""
+    """Fallback background if no photo is available."""
     a = np.zeros((200, 320, 3), np.float64)
-    for y in range(200):                           # Schwarz-Rot-Gold
+    for y in range(200):                           # black-red-gold
         if y < 60:      a[y] = (28, 28, 32)
         elif y < 120:   a[y] = (150, 30, 30)
         else:           a[y] = (200, 160, 40)
@@ -106,7 +109,7 @@ def build_picture(img_path=None):
     else:
         canvas = flag_background()
 
-    # Abdunkeln: Titelstreifen oben, Verlaufsband unten fuer den Liedtext
+    # Darken: title strip at the top, gradient band at the bottom for the lyrics
     for y in range(200):
         f = 1.0
         if y <= 13:
@@ -126,9 +129,9 @@ def build_picture(img_path=None):
     return np.clip(canvas, 0, 255).astype(np.uint8)
 
 # ---------------------------------------------------------------------
-# 3) Umwandlung in ein Multicolor-Bitmap (Koala-Format)
-#    je 8x8-Zeichenzelle: 32 Multicolor-Pixel, Hintergrund = Farbe 0,
-#    dazu 3 Farben aus den 16 C64-Farben (beste Naeherung)
+# 3) Convert to a multicolor bitmap (Koala format)
+#    per 8x8 character cell: 32 multicolor pixels, background = color 0,
+#    plus 3 colors from the 16 C64 colors (best match)
 # ---------------------------------------------------------------------
 PAL = np.array([(0,0,0), (255,255,255), (104,55,43), (112,164,178),
                 (111,61,134), (88,141,67), (53,40,121), (184,199,111),
@@ -148,7 +151,7 @@ def to_koala(img):
             px  = cells[cy, :, cx, :, :].reshape(32, 3)
             d   = ((px[:, None, :] - PAL[None, :, :]) ** 2).sum(2)   # 32x16
             cnt = np.bincount(d.argmin(1), minlength=16)
-            cand = [int(c) for c in np.argsort(-cnt)[:6] if c != 0]  # nie Farbe 0
+            cand = [int(c) for c in np.argsort(-cnt)[:6] if c != 0]  # never color 0
             while len(cand) < 3:
                 cand.append(int(np.argsort(-cnt)[len(cand)]))
             cand = list(dict.fromkeys(cand))
@@ -168,45 +171,45 @@ def to_koala(img):
     return bmp, scr, col
 
 # ---------------------------------------------------------------------
-# 4) Musik: Note1, Note2, Note3, Dauer (1/50 s); 255 = Ende/Schleife
+# 4) Music: note1, note2, note3, duration (1/50 s); 255 = end/loop
 #
-#    Melodie: Es-Dur, 4/4, Viertel = 85 bpm  ->  eine Viertel = 35 Frames
-#    (50 Hz).  Aufbau der 3. Strophe:
-#      Stollen   T1-4   "Einigkeit und Recht und Freiheit /
-#                        fuer das deutsche Vaterland!"      (2x)
-#      Abgesang  T5-8   "Einigkeit und Recht und Freiheit /
-#                        sind des Glueckes Unterpfand."
-#                T9-12  "Blueh im Glanze dieses Glueckes, /
-#                        bluehe, deutsches Vaterland!"       (2x)
-#    Die Noten folgen der Haydn-Melodie (Es-Dur) exakt.
+#    Melody: E-flat major, 4/4, quarter = 85 bpm -> one quarter = 35
+#    frames (50 Hz). Structure of the 3rd verse:
+#      first part   bars 1-4   "Unity and justice and freedom /
+#                               for the German fatherland!"        (2x)
+#      second part  bars 5-8   "Unity and justice and freedom /
+#                               are the pledge of happiness."
+#                   bars 9-12  "Bloom in the splendor of this happiness,
+#                               bloom, German fatherland!"         (2x)
+#    The notes follow the Haydn melody (E-flat major) exactly.
 # ---------------------------------------------------------------------
-Q = 35              # Viertelnote (Frames bei 50 Hz)
+Q = 35              # quarter note (frames at 50 Hz)
 
-CHORDS = {'Eb': (39, 58),     # Bass 39 = Es2, Flaeche 58 = B3
-          'Bb': (46, 62),     # 46 = B2,      62 = D4
-          'Ab': (44, 60)}     # 44 = As2,     60 = C4
+CHORDS = {'Eb': (39, 58),     # bass 39 = Eb2, pad 58 = Bb3
+          'Bb': (46, 62),     # 46 = Bb2,     62 = D4
+          'Ab': (44, 60)}     # 44 = Ab2,     60 = C4
 
-# Takt fuer Takt: ([(MIDI-Note, Laenge in Vierteln), ...], Harmonie)
+# Bar by bar: ([(MIDI note, length in quarters), ...], harmony)
 BARS = [
-    # --- Stollen (T1-T4) -------------------------------------------
-    ([(63,1.5),(65,0.5),(67,1),(65,1)],                    'Eb'),  # Ei-nig-keit und
-    ([(68,1),(67,1),(65,0.5),(62,0.5),(63,1)],             'Eb'),  # Recht und Frei-heit
-    ([(72,1),(70,1),(68,1),(67,1)],                        'Ab'),  # fuer das deut-sche
-    ([(65,1),(67,0.5),(63,0.5),(70,2)],                    'Eb'),  # Va-ter-land
-    # --- Abgesang, 1. Haelfte (T5-T8) ------------------------------
-    ([(65,1),(67,1),(65,0.5),(62,0.5),(58,1)],             'Bb'),  # Ei-nig-keit und
-    ([(68,1),(67,1),(65,0.5),(62,0.5),(58,1)],             'Bb'),  # Recht und Frei-heit
-    ([(70,1),(68,1),(67,1.5),(67,0.5)],                    'Eb'),  # sind des Glue-ckes
-    ([(69,1),(69,0.5),(70,0.5),(70,2)],                    'Bb'),  # Un-ter-pfand
-    # --- Abgesang, 2. Haelfte (T9-T12) -----------------------------
-    ([(75,1.5),(74,0.5),(74,0.5),(72,0.5),(70,1)],         'Eb'),  # Blueh im Glan-ze
-    ([(72,1.5),(70,0.5),(70,0.5),(68,0.5),(67,1)],         'Ab'),  # die-ses Glue-ckes
+    # --- first part (bars 1-4) -------------------------------------
+    ([(63,1.5),(65,0.5),(67,1),(65,1)],                    'Eb'),  # U-ni-ty and
+    ([(68,1),(67,1),(65,0.5),(62,0.5),(63,1)],             'Eb'),  # jus-tice and free-dom
+    ([(72,1),(70,1),(68,1),(67,1)],                        'Ab'),  # for the Ger-man
+    ([(65,1),(67,0.5),(63,0.5),(70,2)],                    'Eb'),  # fa-ther-land
+    # --- second part, first half (bars 5-8) ------------------------
+    ([(65,1),(67,1),(65,0.5),(62,0.5),(58,1)],             'Bb'),  # U-ni-ty and
+    ([(68,1),(67,1),(65,0.5),(62,0.5),(58,1)],             'Bb'),  # jus-tice and free-dom
+    ([(70,1),(68,1),(67,1.5),(67,0.5)],                    'Eb'),  # are the pledge of
+    ([(69,1),(69,0.5),(70,0.5),(70,2)],                    'Bb'),  # hap-pi-ness
+    # --- second part, second half (bars 9-12) ----------------------
+    ([(75,1.5),(74,0.5),(74,0.5),(72,0.5),(70,1)],         'Eb'),  # bloom in the splen-dor
+    ([(72,1.5),(70,0.5),(70,0.5),(68,0.5),(67,1)],         'Ab'),  # of this hap-pi-ness
     ([(65,1.5),(67,0.25),(68,0.25),(70,0.5),(72,0.5),
-      (68,0.5),(65,0.5)],                                  'Bb'),  # blue-he, deut-sches
-    ([(63,1),(67,0.5),(65,0.5),(63,2)],                    'Eb'),  # Va-ter-land
+      (68,0.5),(65,0.5)],                                  'Bb'),  # blos-som, Ger-man
+    ([(63,1),(67,0.5),(65,0.5),(63,2)],                    'Eb'),  # fa-ther-land
 ]
 
-# Stollen 2x, Abgesang 1. Haelfte, Abgesang 2. Haelfte 2x
+# First part 2x, second part first half, second part second half 2x
 STRUCTURE = [0,1,2,3, 0,1,2,3, 4,5,6,7, 8,9,10,11, 8,9,10,11]
 
 def build_music():
@@ -216,12 +219,12 @@ def build_music():
         bass, pad = CHORDS[ch]
         for nt, beats in notes:
             ev += [nt, bass, pad, max(1, int(round(beats * Q)))]
-    ev[-1] = 100                        # Fermate auf der Schlussnote
-    ev += [255, 0, 0, 0]                # Endmarke
+    ev[-1] = 100                        # fermata on the final note
+    ev += [255, 0, 0, 0]                # end marker
     return ev
 
 # ---------------------------------------------------------------------
-# 5) SID-Frequenztabelle PAL: reg = f * 16777216 / 985248
+# 5) SID frequency table PAL: reg = f * 16777216 / 985248
 # ---------------------------------------------------------------------
 def build_freq():
     t = []
@@ -233,8 +236,17 @@ def build_freq():
 
 # ---------------------------------------------------------------------
 def main():
-    img = sys.argv[1] if len(sys.argv) > 1 else "data/gen-755.png"
-    canvas = build_picture(img)
+    ap = argparse.ArgumentParser(
+        description="Generate the binary data for anthem.asm.")
+    ap.add_argument("image", nargs="?", default=None,
+                    help="optional background image "
+                         "(default: simple flag background)")
+    ap.add_argument("-o", "--outdir", default="build",
+                    help="output directory (default: build)")
+    args = ap.parse_args()
+
+    os.makedirs(args.outdir, exist_ok=True)
+    canvas = build_picture(args.image)
     bmp, scr, col = to_koala(canvas)
 
     out = {
@@ -245,9 +257,11 @@ def main():
         "freq.bin":   build_freq(),
     }
     for name, data in out.items():
-        open(name, "wb").write(bytes(data))
-        print("%-11s %5d Bytes" % (name, len(data)))
-    Image.fromarray(canvas).save("bild_320x200.png")
+        path = os.path.join(args.outdir, name)
+        with open(path, "wb") as f:
+            f.write(bytes(data))
+        print("%-11s %5d bytes" % (name, len(data)))
+    Image.fromarray(canvas).save(os.path.join(args.outdir, "image_320x200.png"))
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,62 @@
+# =====================================================================
+#  build.ninja  -  build file for the C64 anthem demo
+#
+#    ninja          build build/anthem.prg and build/anthem.d64
+#    ninja clean    remove the build directory
+#
+#  Requires: acme, python3 (numpy, pillow), c1541 (VICE)
+# =====================================================================
+
+ninja_required_version = 1.10
+
+srcdir = src
+outdir = build
+
+acme   = acme
+python = python3
+c1541  = c1541
+
+# ---------------------------------------------------------------------
+#  Generated data: bitmap, screen, colors, music, frequency table
+# ---------------------------------------------------------------------
+rule data
+  command     = $python $srcdir/make_data.py --outdir $outdir
+  description = GEN $outdir/*.bin
+  restat      = 1
+
+build $outdir/bitmap.bin $
+      $outdir/screen.bin $
+      $outdir/colors.bin $
+      $outdir/music.bin $
+      $outdir/freq.bin $
+      $outdir/image_320x200.png: data $srcdir/make_data.py
+
+# ---------------------------------------------------------------------
+#  Assemble the program
+# ---------------------------------------------------------------------
+rule acme
+  command     = cd $outdir && $acme ../$srcdir/anthem.asm
+  description = ACME $out
+  restat      = 1
+
+build $outdir/anthem.prg: acme $srcdir/anthem.asm $
+      $outdir/bitmap.bin $outdir/screen.bin $outdir/colors.bin $
+      $outdir/music.bin $outdir/freq.bin
+
+# ---------------------------------------------------------------------
+#  Disk image
+# ---------------------------------------------------------------------
+rule d64
+  command     = rm -f $out && $c1541 -format "anthem,01" d64 $out -write $outdir/anthem.prg anthem
+  description = D64 $out
+
+build $outdir/anthem.d64: d64 $outdir/anthem.prg
+
+# ---------------------------------------------------------------------
+default $outdir/anthem.prg $outdir/anthem.d64
+
+rule clean
+  command     = rm -rf $outdir
+  description = CLEAN $outdir
+
+build clean: clean

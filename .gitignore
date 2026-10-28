@@ -1,0 +1,8 @@
+# Build output
+/build/
+/.ninja_log
+/.ninja_deps
+
+# Python
+__pycache__/
+*.py[cod]
