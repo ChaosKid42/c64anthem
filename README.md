@@ -20,10 +20,17 @@ The program is written in ACME assembly and built with Ninja.
 
 ```sh
 ninja          # builds build/anthem.prg and build/anthem.d64
+ninja run      # builds and starts the program in VICE
 ninja clean    # removes the build directory
 ```
 
 ## Run
+
+```sh
+ninja run      # build and start build/anthem.prg in x64sc
+```
+
+Or open the disk image manually:
 
 ```sh
 x64 build/anthem.d64

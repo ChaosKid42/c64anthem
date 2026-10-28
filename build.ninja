@@ -2,9 +2,10 @@
 #  build.ninja  -  build file for the C64 anthem demo
 #
 #    ninja          build build/anthem.prg and build/anthem.d64
+#    ninja run      build and start the program in VICE
 #    ninja clean    remove the build directory
 #
-#  Requires: acme, python3 (numpy, pillow), c1541 (VICE)
+#  Requires: acme, python3 (numpy, pillow), c1541 (VICE), x64sc (VICE)
 # =====================================================================
 
 ninja_required_version = 1.10
@@ -15,6 +16,7 @@ outdir = build
 acme   = acme
 python = python3
 c1541  = c1541
+vice   = x64sc
 
 # ---------------------------------------------------------------------
 #  Generated data: bitmap, screen, colors, music, frequency table
@@ -51,6 +53,16 @@ rule d64
   description = D64 $out
 
 build $outdir/anthem.d64: d64 $outdir/anthem.prg
+
+# ---------------------------------------------------------------------
+#  Run in VICE
+# ---------------------------------------------------------------------
+rule run
+  command     = $vice $in
+  description = RUN $in
+
+# The output is never created, so this target always runs.
+build run: run $outdir/anthem.prg
 
 # ---------------------------------------------------------------------
 default $outdir/anthem.prg $outdir/anthem.d64
